@@ -8,6 +8,7 @@ import { User } from './model/user';
 import { Users } from './model/users';
 import { SystemMessage } from './model/system-message';
 import { Writter } from './model/writter';
+import { ChatSystem } from './model/chat-system';
 
 export class LogicServer {
     public static readonly PORT:number = 8080;
@@ -63,8 +64,12 @@ export class LogicServer {
                 this.loginAction(socket, user);
             });
 
-            socket.on('message', (message: ChatMessage) => {
-                this.messageAction(socket, message);
+            socket.on('allUsers', () => {
+                this.allUsersAction(socket);
+            });
+
+            socket.on('newChatMessage', (chatMessage: ChatMessage) => {
+                this.newChatMessageAction(socket, chatMessage);
             });
 
             socket.on('disconnect', () => {
@@ -85,6 +90,7 @@ export class LogicServer {
 
             if (userCreated) {
                 socket.emit('newUser', new SystemMessage(true, 'The player was successfully created! You are logged in'));
+                this.broadcastUsersLoggedIn(socket);
                 console.log("[newUser]: The following user was created - %s", newUser.userName);
             }
             else {
@@ -105,6 +111,7 @@ export class LogicServer {
 
             if (userIsLoggedIn) {
                 socket.emit('login', new SystemMessage(true, 'You logged in! Welcome ' + user.userName));
+                this.broadcastUsersLoggedIn(socket);
                 console.log("[login]: The following user logged in - %s", user.userName);
             }
             else {
@@ -118,14 +125,33 @@ export class LogicServer {
         }
     }
 
-    private messageAction(socket: any, message: ChatMessage): void {
-        console.log('[message]: %s', JSON.stringify(message));
-        this.io.emit('message', message);
+    private allUsersAction(socket: any): void {
+
+        socket.emit('allUsers', Users.loggedInUsers);
+        console.log("[allUsers]: A list of users was sent - %s", socket.id);
+
+    }
+
+    private newChatMessageAction(socket: any, chatMessage: ChatMessage): void {
+
+        ChatSystem.addChatMessage(chatMessage);
+        this.io.sockets.emit('newChatMessage', ChatSystem.mainChatLog);
+        console.log('[newChatMessage]: Added a message on the main chat - %s', socket.id);
+
     }
 
     private disconnectAction(socket: any): void {
-        console.log('[disconnect]: Client was disconnected with socket id - %s', socket.id);
+
         Users.removeConnectedUser(socket.id);
+        this.broadcastUsersLoggedIn(socket);
+        console.log('[disconnect]: Client was disconnected with socket id - %s', socket.id);
+
+    }
+
+    private broadcastUsersLoggedIn(socket: any): void {
+
+        socket.broadcast.emit('allUsers', Users.loggedInUsers);
+
     }
 
 }
