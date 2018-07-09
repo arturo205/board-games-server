@@ -1,2 +1,3 @@
 {"socketId":"oPKIBzI3UO4sMXhbAAAA","userName":"Arturo","password":"mypwd"}
 {"socketId":"vqPXNbbM_sy7gacZAAAD","userName":"Jog","password":"pwd"}
+{"socketId":"hgNblQ0psW_KZr94AAAB","userName":"","password":""}

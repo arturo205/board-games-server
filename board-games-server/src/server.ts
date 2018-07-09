@@ -9,6 +9,8 @@ import { Users } from './model/users';
 import { SystemMessage } from './model/system-message';
 import { Writter } from './model/writter';
 import { ChatSystem } from './model/chat-system';
+import { TicTacToeLogic } from './tic-tac-toe/tic-tac-toe-logic';
+import { TicTacToeMove } from './tic-tac-toe/tic-tac-toe-move';
 
 export class LogicServer {
     public static readonly PORT:number = 8080;
@@ -74,6 +76,18 @@ export class LogicServer {
 
             socket.on('disconnect', () => {
                 this.disconnectAction(socket);
+            });
+
+            socket.on('joinTicTacToe', (user: User) => {
+                this.joinTicTacToeGameAction(socket, user);
+            });
+
+            socket.on('performTicTacToeMove', (move: TicTacToeMove) => {
+                this.performTicTacToeMoveAction(socket, move);
+            });
+
+            socket.on('resetTicTacToe', () => {
+                this.resetTicTacToeAction();
             });
 
         });
@@ -151,6 +165,50 @@ export class LogicServer {
     private broadcastUsersLoggedIn(socket: any): void {
 
         socket.broadcast.emit('allUsers', Users.loggedInUsers);
+
+    }
+
+    private joinTicTacToeGameAction(socket: any, user: User): void {
+
+        let joinedGame = TicTacToeLogic.joinGame(socket, user);
+
+        if (joinedGame) {
+            this.sendTicTacToeStatusToConnectedUsers();
+        }
+        else {
+            socket.emit('ticTacToeSystemMessage', TicTacToeLogic.status.systemMessage);
+            console.log('[joinTicTacToe]: User was denied to join tic-tac-toe game - %s', user.userName);
+        }
+
+    }
+
+    private performTicTacToeMoveAction(socket: any, move: TicTacToeMove): void {
+
+        TicTacToeLogic.performMove(move).then(() => {
+            this.sendTicTacToeStatusToConnectedUsers();
+        });
+
+    }
+
+    private sendTicTacToeStatusToConnectedUsers(): void {
+
+        TicTacToeLogic.socketsFromActivePlayers.forEach(socketFromActivePlayer => {
+            console.log("Data sent to someone");
+            console.log(TicTacToeLogic.status);
+            socketFromActivePlayer.emit('ticTacToeStatus', TicTacToeLogic.status);
+        });
+
+        console.log('[ticTacToeStatus]: Sent the tic-tac-toe status to users playing');
+
+    }
+
+    private resetTicTacToeAction(): void {
+
+        TicTacToeLogic.resetGame().then(() => {
+            this.sendTicTacToeStatusToConnectedUsers();
+        });
+
+        console.log('[resetTicTacToe]: The tic-tac-toe was reset by a user');
 
     }
 

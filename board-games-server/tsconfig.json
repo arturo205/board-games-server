@@ -1,9 +1,11 @@
 {
   "files": [
     "src/*.ts",
-    "src/model/*.ts"
+    "src/model/*.ts",
+    "src/tic-tac-toe/*.ts"
   ],
   "compilerOptions": {
-    "target": "es5"
+    "target": "es5",
+    "lib": [ "es2015" ]
   }
 }
