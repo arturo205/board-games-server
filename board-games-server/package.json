@@ -1,9 +1,7 @@
 {
     "name": "server-board-games",
     "version": "0.0.0",
-    "scripts": {
-        "postinstall": "node dist/index.js"
-    },
+    "scripts": { },
     "dependencies": {
         "@types/express": "^4.11.1",
         "@types/socket.io": "^1.4.34",
