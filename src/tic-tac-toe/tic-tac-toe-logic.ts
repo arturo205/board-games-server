@@ -1,6 +1,6 @@
 import { TicTacToeMove } from "./tic-tac-toe-move";
 import { TicTacToeStatus } from "./tic-tac-toe-status";
-import { User } from "../model/user";
+import { Player } from "../model/player";
 
 export class TicTacToeLogic {
 
@@ -8,14 +8,14 @@ export class TicTacToeLogic {
     public static socketsFromActivePlayers: Array<any> = new Array<any>();
     public static status: TicTacToeStatus = new TicTacToeStatus();
 
-    public static joinGame(socket: any, user: User): boolean {
+    public static joinGame(socket: any, user: Player): boolean {
 
         let joinedGame: boolean = false;
 
         if (this.status.playersConnected.length < 2) {
             this.status.playersConnected.push(user);
             this.status.systemMessage.result = true;
-            this.status.systemMessage.message = user.userName + " joined the game!";
+            this.status.systemMessage.message = user.name + " joined the game!";
             this.socketsFromActivePlayers.push(socket);
             this.assignCharToPlay(this.status.playersConnected.length);
             joinedGame = true;
@@ -30,6 +30,66 @@ export class TicTacToeLogic {
         }
 
         return joinedGame;
+
+    }
+
+    public static leaveGame(socket: any, player: Player): Promise<boolean> {
+
+        return new Promise<boolean>((resolve, reject) => {
+
+            let playerWasRemoved: boolean = this.removeConnectedPlayer(socket, player);
+
+            if (playerWasRemoved) {
+
+                this.resetGame()
+                .then(resetResult => {
+                    resolve(resetResult);
+                })
+                .catch(error => {
+                    reject(error);
+                });
+            }
+            else {
+                resolve(false);
+            }
+        })
+
+    }
+
+    public static removeConnectedPlayer(socket: any, playerToRemove: Player): boolean {
+
+        let indexToDelete: number = -1;
+        let playerRemoved: boolean = false;
+
+        this.status.playersConnected.forEach((player, index) => {
+            if (player.name === playerToRemove.name) {
+                indexToDelete = index;
+            }
+        });
+
+        if (indexToDelete >= 0) {
+            this.status.playersConnected.splice(indexToDelete, 1);
+            this.removeActiveSocket(socket);
+            playerRemoved = true;
+        }
+
+        return playerRemoved;
+
+    }
+
+    public static removeActiveSocket(socket: any): void {
+
+        let indexToDelete: number = -1;
+
+        this.socketsFromActivePlayers.forEach((activeSocket, index) => {
+            if (activeSocket.id === socket.id) {
+                indexToDelete = index;
+            }
+        });
+
+        if (indexToDelete >= 0) {
+            this.socketsFromActivePlayers.splice(indexToDelete, 1);
+        }
 
     }
 
@@ -51,8 +111,10 @@ export class TicTacToeLogic {
 
         this.buildMovementsToWin();
         this.initializeSquareStatus();
-        this.status.currentTurn = this.status.playersConnected[0];
-        this.status.systemMessage.message = this.status.currentTurn.userName + " please make your move!";
+        if (this.status.playersConnected.length > 0) {
+            this.status.currentTurn = this.status.playersConnected[0];
+        }
+        this.status.systemMessage.message = this.status.currentTurn.name + " please make your move!";
 
     }
 
@@ -78,14 +140,8 @@ export class TicTacToeLogic {
 
             if (!this.status.gameOver) {
 
-                console.log("All Status:");
-                console.log(this.status);
-                console.log("move:");
-                console.log(move);
-
                 if (this.status.squaresStatus[move.selectedPosition] === null) {
-                    console.log("Current turn:");
-                    console.log(this.status.currentTurn);
+
                     this.status.squaresStatus[move.selectedPosition] = this.status.currentTurn;
                     let winnerCombinationIndex = this.checkForWinner();
 
@@ -107,7 +163,7 @@ export class TicTacToeLogic {
                     }
                     else {
 
-                        this.status.systemMessage.message = "Congratulations! " + this.status.currentTurn.userName + " won!";
+                        this.status.systemMessage.message = "Congratulations! " + this.status.currentTurn.name + " won!";
                         this.status.gameOver = true;
                         this.status.winnerCombination = this.winnerCombinations[winnerCombinationIndex];
 
@@ -120,8 +176,7 @@ export class TicTacToeLogic {
 
                 }
             }
-            console.log("Final status print:");
-            console.log(this.status);
+
             resolve(true);
         });
     }
@@ -131,7 +186,7 @@ export class TicTacToeLogic {
         let changeApplied: boolean = false;
 
         this.status.playersConnected.forEach(user => {
-            if (user.userName !== this.status.currentTurn.userName && !changeApplied) {
+            if (user.name !== this.status.currentTurn.name && !changeApplied) {
                 changeApplied = true;
                 this.status.currentTurn = user;
             }
@@ -169,7 +224,7 @@ export class TicTacToeLogic {
 
     public static updateTurnMessage(): void {
 
-        this.status.systemMessage.message = this.status.currentTurn.userName + " please make your move! ";
+        this.status.systemMessage.message = this.status.currentTurn.name + " please make your move! ";
 
     }
 

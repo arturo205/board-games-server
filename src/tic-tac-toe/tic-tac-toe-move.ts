@@ -1,12 +1,12 @@
-import { User } from "../model/user";
+import { Player } from "../model/player";
 
 export class TicTacToeMove {
 
-    public user: User;
+    public player: Player;
     public selectedPosition: number;
 
-    constructor(user: User, selectedPosition: number) {
-        this.user = user;
+    constructor(player: Player, selectedPosition: number) {
+        this.player = player;
         this.selectedPosition = selectedPosition;
     }
 

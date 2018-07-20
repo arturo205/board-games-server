@@ -1,16 +1,15 @@
 import { createServer, Server } from 'http';
 import * as express from 'express';
 import * as socketIo from 'socket.io';
-import * as path from 'path';
 
 import { ChatMessage } from './model/chat-message';
-import { User } from './model/user';
-import { Users } from './model/users';
+import { Player } from './model/player';
+import { Players } from './model/players';
 import { SystemMessage } from './model/system-message';
-import { Writter } from './model/writter';
 import { ChatSystem } from './model/chat-system';
 import { TicTacToeLogic } from './tic-tac-toe/tic-tac-toe-logic';
 import { TicTacToeMove } from './tic-tac-toe/tic-tac-toe-move';
+import { BoardGamesDB } from './database/database';
 
 export class LogicServer {
     public static readonly PORT:number = 8080;
@@ -25,7 +24,7 @@ export class LogicServer {
         this.createServer();
         this.sockets();
         this.listen();
-        this.loadInitialData();
+        BoardGamesDB.initialize();
     }
 
     private createApp(): void {
@@ -44,10 +43,6 @@ export class LogicServer {
         this.io = socketIo(this.server);
     }
 
-    private loadInitialData(): void {
-        Users.loadUsersFromFileDB();
-    }
-
     private listen(): void {
 
         this.server.listen(this.port, () => {
@@ -58,16 +53,24 @@ export class LogicServer {
 
             console.log('[connect]: Connected client with socket id - %s', socket.id);
 
-            socket.on('newUser', (newUser: User) => {
-                this.newUserAction(socket, newUser);
+            socket.on('newPlayer', (newPlayer: Player) => {
+                this.newPlayerAction(socket, newPlayer);
             });
 
-            socket.on('login', (user: User) => {
-                this.loginAction(socket, user);
+            socket.on('updatePlayer', (updatedPlayer: Player) => {
+                this.updatePlayerAction(socket, updatedPlayer);
             });
 
-            socket.on('allUsers', () => {
-                this.allUsersAction(socket);
+            socket.on('login', (data: string, pwd: string) => {
+                this.loginAction(socket, data, pwd);
+            });
+
+            socket.on('logout', () => {
+                this.logoutAction(socket);
+            });
+
+            socket.on('allPlayers', () => {
+                this.allPlayersAction(socket);
             });
 
             socket.on('newChatMessage', (chatMessage: ChatMessage) => {
@@ -78,8 +81,8 @@ export class LogicServer {
                 this.disconnectAction(socket);
             });
 
-            socket.on('joinTicTacToe', (user: User) => {
-                this.joinTicTacToeGameAction(socket, user);
+            socket.on('joinTicTacToe', (player: Player) => {
+                this.joinTicTacToeGameAction(socket, player);
             });
 
             socket.on('performTicTacToeMove', (move: TicTacToeMove) => {
@@ -90,6 +93,10 @@ export class LogicServer {
                 this.resetTicTacToeAction();
             });
 
+            socket.on('leaveTicTacToe', (player: Player) => {
+                this.leaveTicTacToeAction(socket, player);
+            });
+
         });
     }
 
@@ -97,41 +104,58 @@ export class LogicServer {
         return this.app;
     }
 
-    private newUserAction(socket: any, newUser: User): void {
+    private newPlayerAction(socket: any, newPlayer: Player): void {
 
-        if (!Users.userIsConnected(socket.id)) {
-            let userCreated: boolean = Users.createUser(newUser, socket.id);
+        if (!Players.playerIsConnected(socket.id)) {
 
-            if (userCreated) {
-                socket.emit('newUser', new SystemMessage(true, 'The player was successfully created! You are logged in'));
-                this.broadcastUsersLoggedIn(socket);
-                console.log("[newUser]: The following user was created - %s", newUser.userName);
-            }
-            else {
-                socket.emit('newUser', new SystemMessage(false, 'The player was not created. Please choose other username'));
-                console.log("[newUser]: The following user failed to be created - %s", newUser.userName);
-            }
+            Players.createPlayer(newPlayer, socket.id)
+            .then(createdPlayer => {
+                socket.emit('newPlayer', createdPlayer);
+                this.broadcastPlayersLoggedIn(socket);
+                console.log("[newPlayer]: The following player was created - %s", newPlayer.name);
+            })
+            .catch(error => {
+                socket.emit('newPlayer', new SystemMessage(false, error));
+                console.log("[newPlayer]: The following player failed to be created - %s", newPlayer.name);
+            });
+
         }
         else {
-            socket.emit('newUser', new SystemMessage(true, 'There is a player already logged in!'));
-            console.log("[newUser]: The following socket has a player already logged in - %s", socket.id);
+            socket.emit('newPlayer', new SystemMessage(true, 'There is a player already logged in!'));
+            console.log("[newPlayer]: The following socket has a player already logged in - %s", socket.id);
         }
     }
 
-    private loginAction(socket: any, user: User): void {
+    private updatePlayerAction(socket: any, updatedPlayer: Player): void {
 
-        if (!Users.userIsConnected(socket.id)) {
-            let userIsLoggedIn: boolean = Users.login(user, socket.id);
+        Players.updatePlayer(updatedPlayer)
+        .then(() => {
+            socket.emit('updatePlayer', new SystemMessage(true, "The player was successfully updated!"));
+            this.broadcastPlayersLoggedIn(socket);
+            console.log("[updatePlayer]: The following player was updated - %s", updatedPlayer.name);
+        })
+        .catch(error => {
+            socket.emit('updatePlayer', new SystemMessage(false, error + " - logged out."));
+            this.logoutAction(socket);
+            console.log("[updatePlayer]: The following player was not updated - %s", updatedPlayer.name);
+        });
 
-            if (userIsLoggedIn) {
-                socket.emit('login', new SystemMessage(true, 'You logged in! Welcome ' + user.userName));
-                this.broadcastUsersLoggedIn(socket);
-                console.log("[login]: The following user logged in - %s", user.userName);
-            }
-            else {
-                socket.emit('login', new SystemMessage(false, 'Could not login. Incorrect user or password'));
-                console.log("[login]: The following user failed to login - %s", user.userName);
-            }
+    }
+
+    private loginAction(socket: any, name: string, password: string): void {
+
+        if (!Players.playerIsConnected(socket.id)) {
+
+            Players.login(name, password, socket.id)
+            .then(player => {
+                socket.emit('login', player);
+                this.broadcastPlayersLoggedIn(socket);
+                console.log("[login]: The following player logged in - %s", player.name);
+            })
+            .catch(error => {
+                socket.emit('login', new SystemMessage(false, error));
+                console.log("[login]: The following player failed to login - %s", name);
+            });
         }
         else {
             socket.emit('login', new SystemMessage(true, 'There is a player already logged in!'));
@@ -139,10 +163,15 @@ export class LogicServer {
         }
     }
 
-    private allUsersAction(socket: any): void {
+    public logoutAction(socket: any): void {
 
-        socket.emit('allUsers', Users.loggedInUsers);
-        console.log("[allUsers]: A list of users was sent - %s", socket.id);
+        this.disconnectAction(socket);
+    }
+
+    private allPlayersAction(socket: any): void {
+
+        socket.emit('allPlayers', Players.loggedInPlayers);
+        console.log("[allPlayers]: A list of players was sent - %s", socket.id);
 
     }
 
@@ -156,28 +185,30 @@ export class LogicServer {
 
     private disconnectAction(socket: any): void {
 
-        Users.removeConnectedUser(socket.id);
-        this.broadcastUsersLoggedIn(socket);
+        let player: Player = Players.getPlayerFromSocketId(socket.id);
+        this.leaveTicTacToeAction(socket, player);
+        Players.removeConnectedPlayer(socket.id);
+        this.broadcastPlayersLoggedIn(socket);
         console.log('[disconnect]: Client was disconnected with socket id - %s', socket.id);
 
     }
 
-    private broadcastUsersLoggedIn(socket: any): void {
+    private broadcastPlayersLoggedIn(socket: any): void {
 
-        socket.broadcast.emit('allUsers', Users.loggedInUsers);
+        socket.broadcast.emit('allPlayers', Players.loggedInPlayers);
 
     }
 
-    private joinTicTacToeGameAction(socket: any, user: User): void {
+    private joinTicTacToeGameAction(socket: any, player: Player): void {
 
-        let joinedGame = TicTacToeLogic.joinGame(socket, user);
+        let joinedGame = TicTacToeLogic.joinGame(socket, player);
 
         if (joinedGame) {
-            this.sendTicTacToeStatusToConnectedUsers();
+            this.sendTicTacToeStatusToConnectedPlayers();
         }
         else {
             socket.emit('ticTacToeSystemMessage', TicTacToeLogic.status.systemMessage);
-            console.log('[joinTicTacToe]: User was denied to join tic-tac-toe game - %s', user.userName);
+            console.log('[joinTicTacToe]: Player was denied to join tic-tac-toe game - %s', player.name);
         }
 
     }
@@ -185,30 +216,47 @@ export class LogicServer {
     private performTicTacToeMoveAction(socket: any, move: TicTacToeMove): void {
 
         TicTacToeLogic.performMove(move).then(() => {
-            this.sendTicTacToeStatusToConnectedUsers();
+            this.sendTicTacToeStatusToConnectedPlayers();
         });
 
     }
 
-    private sendTicTacToeStatusToConnectedUsers(): void {
+    private sendTicTacToeStatusToConnectedPlayers(): void {
 
         TicTacToeLogic.socketsFromActivePlayers.forEach(socketFromActivePlayer => {
-            console.log("Data sent to someone");
-            console.log(TicTacToeLogic.status);
             socketFromActivePlayer.emit('ticTacToeStatus', TicTacToeLogic.status);
         });
 
-        console.log('[ticTacToeStatus]: Sent the tic-tac-toe status to users playing');
+        console.log('[ticTacToeStatus]: Sent the tic-tac-toe status to players playing');
 
     }
 
     private resetTicTacToeAction(): void {
 
-        TicTacToeLogic.resetGame().then(() => {
-            this.sendTicTacToeStatusToConnectedUsers();
+        TicTacToeLogic.resetGame()
+        .then(() => {
+            this.sendTicTacToeStatusToConnectedPlayers();
         });
 
-        console.log('[resetTicTacToe]: The tic-tac-toe was reset by a user');
+        console.log('[resetTicTacToe]: The tic-tac-toe was reset by a player');
+
+    }
+
+    private leaveTicTacToeAction(socket: any, player: Player): void {
+
+        TicTacToeLogic.resetGame()
+        .then(() => {
+            this.sendTicTacToeStatusToConnectedPlayers();
+            TicTacToeLogic.leaveGame(socket, player)
+            .then(needUpdate => {
+                if (needUpdate === true) {
+                    this.sendTicTacToeStatusToConnectedPlayers();
+                    socket.emit('ticTacToeStatus', TicTacToeLogic.status);
+                }
+            });
+        });
+
+        console.log('[leaveTicTacToe]: A player left tic-tac-toe');
 
     }
 

@@ -1,12 +1,12 @@
-import { User } from "./user";
+import { Player } from "./player";
 
 export class ChatMessage {
 
-    public user: User;
+    public player: Player;
     public message: string;
 
-    constructor(user: User, message: string) {
-        this.user = user;
+    constructor(player: Player, message: string) {
+        this.player = player;
         this.message = message;
     }
 

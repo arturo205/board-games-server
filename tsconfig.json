@@ -2,10 +2,13 @@
   "files": [
     "src/*.ts",
     "src/model/*.ts",
-    "src/tic-tac-toe/*.ts"
+    "src/tic-tac-toe/*.ts",
+    "src/database/*.ts"
   ],
   "compilerOptions": {
     "target": "es5",
     "lib": [ "es2015" ]
-  }
+  },
+  "experimentalDecorators": true,
+  "emitDecoratorMetadata": true
 }
