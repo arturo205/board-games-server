@@ -10,6 +10,8 @@ import { ChatSystem } from './model/chat-system';
 import { TicTacToeLogic } from './tic-tac-toe/tic-tac-toe-logic';
 import { TicTacToeMove } from './tic-tac-toe/tic-tac-toe-move';
 import { BoardGamesDB } from './database/database';
+import { TicTacToeCluster } from './tic-tac-toe/tic-tac-toe-cluster';
+import { resolve } from 'url';
 
 export class LogicServer {
     public static readonly PORT:number = 8080;
@@ -81,20 +83,28 @@ export class LogicServer {
                 this.disconnectAction(socket);
             });
 
-            socket.on('joinTicTacToe', (player: Player) => {
-                this.joinTicTacToeGameAction(socket, player);
+            socket.on('newTicTacToe', (player: Player) => {
+                this.newTicTacToeAction(socket, player);
             });
 
-            socket.on('performTicTacToeMove', (move: TicTacToeMove) => {
-                this.performTicTacToeMoveAction(socket, move);
+            socket.on('joinTicTacToe', (player: Player, gameID: number) => {
+                this.joinTicTacToeGameAction(socket, player, gameID);
             });
 
-            socket.on('resetTicTacToe', () => {
-                this.resetTicTacToeAction();
+            socket.on('performTicTacToeMove', (move: TicTacToeMove, gameID: number) => {
+                this.performTicTacToeMoveAction(socket, move, gameID);
             });
 
-            socket.on('leaveTicTacToe', (player: Player) => {
-                this.leaveTicTacToeAction(socket, player);
+            socket.on('resetTicTacToe', (gameID: number) => {
+                this.resetTicTacToeAction(socket, gameID);
+            });
+
+            socket.on('leaveTicTacToe', (player: Player, gameID: number) => {
+                this.leaveTicTacToeAction(socket, player, gameID);
+            });
+
+            socket.on('ticTacToeSummary', () => {
+                this.ticTacToeSummaryAction(socket);
             });
 
         });
@@ -144,12 +154,13 @@ export class LogicServer {
 
     private loginAction(socket: any, name: string, password: string): void {
 
-        if (!Players.playerIsConnected(socket.id)) {
+        if (!Players.playerIsConnected(name)) {
 
             Players.login(name, password, socket.id)
             .then(player => {
                 socket.emit('login', player);
                 this.broadcastPlayersLoggedIn(socket);
+                this.broadcastChatMessages();
                 console.log("[login]: The following player logged in - %s", player.name);
             })
             .catch(error => {
@@ -158,7 +169,7 @@ export class LogicServer {
             });
         }
         else {
-            socket.emit('login', new SystemMessage(true, 'There is a player already logged in!'));
+            socket.emit('login', new SystemMessage(false, 'There is a player already logged in!'));
             console.log("[login]: The following socket has a player already logged in - %s", socket.id);
         }
     }
@@ -178,17 +189,32 @@ export class LogicServer {
     private newChatMessageAction(socket: any, chatMessage: ChatMessage): void {
 
         ChatSystem.addChatMessage(chatMessage);
+        this.broadcastChatMessages();
+        console.log('[newChatMessage]: Added a message on the main chat');
+
+    }
+
+    private broadcastChatMessages(): void {
+
         this.io.sockets.emit('newChatMessage', ChatSystem.mainChatLog);
-        console.log('[newChatMessage]: Added a message on the main chat - %s', socket.id);
 
     }
 
     private disconnectAction(socket: any): void {
 
         let player: Player = Players.getPlayerFromSocketId(socket.id);
-        this.leaveTicTacToeAction(socket, player);
+        let ticTacToeGameID: number = TicTacToeCluster.getGameID(player);
+
+        if (ticTacToeGameID >= 0) {
+            this.leaveTicTacToeAction(socket, player, ticTacToeGameID)
+            .then(() => {
+                this.sendTicTacToeSummaryToEveryone();
+            });
+        }
+
         Players.removeConnectedPlayer(socket.id);
         this.broadcastPlayersLoggedIn(socket);
+
         console.log('[disconnect]: Client was disconnected with socket id - %s', socket.id);
 
     }
@@ -199,64 +225,139 @@ export class LogicServer {
 
     }
 
-    private joinTicTacToeGameAction(socket: any, player: Player): void {
+    private newTicTacToeAction(socket: any, player: Player): void {
 
-        let joinedGame = TicTacToeLogic.joinGame(socket, player);
+        TicTacToeCluster.addNewGame(socket, player)
+        .then(gameID => {
+            this.sendTicTacToeSummaryToEveryone();
+            this.sendTicTacToeStatusToConnectedPlayers(socket, gameID);
+        });
 
-        if (joinedGame) {
-            this.sendTicTacToeStatusToConnectedPlayers();
+    }
+
+    private joinTicTacToeGameAction(socket: any, player: Player, gameID: number): void {
+
+        let game: TicTacToeLogic = TicTacToeCluster.getGame(gameID);
+        let result: boolean = false;
+        
+        if (game !== null) {
+            result = game.joinGame(socket, player);
+
+            if (result) {
+                this.sendTicTacToeStatusToConnectedPlayers(socket, gameID);
+            }
+            else {
+                socket.emit('ticTacToeSystemMessage', game.status.systemMessage);
+                console.log('[joinTicTacToe]: Player was denied to join tic-tac-toe game - %s', player.name);
+            }
         }
         else {
-            socket.emit('ticTacToeSystemMessage', TicTacToeLogic.status.systemMessage);
-            console.log('[joinTicTacToe]: Player was denied to join tic-tac-toe game - %s', player.name);
+            this.sendTicTacToeGameNotFoundMessage(socket);
         }
 
     }
 
-    private performTicTacToeMoveAction(socket: any, move: TicTacToeMove): void {
+    private performTicTacToeMoveAction(socket: any, move: TicTacToeMove, gameID: number): void {
 
-        TicTacToeLogic.performMove(move).then(() => {
-            this.sendTicTacToeStatusToConnectedPlayers();
-        });
+        let game: TicTacToeLogic = TicTacToeCluster.getGame(gameID);
 
-    }
-
-    private sendTicTacToeStatusToConnectedPlayers(): void {
-
-        TicTacToeLogic.socketsFromActivePlayers.forEach(socketFromActivePlayer => {
-            socketFromActivePlayer.emit('ticTacToeStatus', TicTacToeLogic.status);
-        });
-
-        console.log('[ticTacToeStatus]: Sent the tic-tac-toe status to players playing');
-
-    }
-
-    private resetTicTacToeAction(): void {
-
-        TicTacToeLogic.resetGame()
-        .then(() => {
-            this.sendTicTacToeStatusToConnectedPlayers();
-        });
-
-        console.log('[resetTicTacToe]: The tic-tac-toe was reset by a player');
-
-    }
-
-    private leaveTicTacToeAction(socket: any, player: Player): void {
-
-        TicTacToeLogic.resetGame()
-        .then(() => {
-            this.sendTicTacToeStatusToConnectedPlayers();
-            TicTacToeLogic.leaveGame(socket, player)
-            .then(needUpdate => {
-                if (needUpdate === true) {
-                    this.sendTicTacToeStatusToConnectedPlayers();
-                    socket.emit('ticTacToeStatus', TicTacToeLogic.status);
-                }
+        if (game !== null) {
+            game.performMove(move).then(() => {
+                this.sendTicTacToeStatusToConnectedPlayers(socket, gameID);
             });
+        }
+        else {
+            this.sendTicTacToeGameNotFoundMessage(socket);
+        }
+
+    }
+
+    private sendTicTacToeStatusToConnectedPlayers(socket: any, gameID: number): void {
+
+        let game: TicTacToeLogic = TicTacToeCluster.getGame(gameID);
+
+        if (game !== null) {
+
+            game.socketsFromActivePlayers.forEach(socketFromActivePlayer => {
+                socketFromActivePlayer.emit('ticTacToeStatus', game.status);
+            });
+
+            console.log('[ticTacToeStatus]: Sent the tic-tac-toe status to players playing');
+        }
+        else {
+            this.sendTicTacToeGameNotFoundMessage(socket);
+        }
+
+    }
+
+    private sendTicTacToeGameNotFoundMessage(socket: any): void {
+
+        socket.emit('ticTacToeSystemMessage', new SystemMessage(false, "The game did not exist when the player tried to join"));
+        console.log('[joinTicTacToe]: Player was denied to join tic-tac-toe game - %s', socket.id);
+
+    }
+
+    private resetTicTacToeAction(socket: any, gameID: number): void {
+
+        let game: TicTacToeLogic = TicTacToeCluster.getGame(gameID);
+
+        if (game !== null) {
+
+            game.resetGame()
+            .then(() => {
+                this.sendTicTacToeStatusToConnectedPlayers(socket, gameID);
+            });
+
+            console.log('[resetTicTacToe]: The tic-tac-toe was reset by a player');
+        }
+        else {
+            this.sendTicTacToeGameNotFoundMessage(socket);
+        }
+
+    }
+
+    private leaveTicTacToeAction(socket: any, player: Player, gameID: number): Promise<boolean> {
+
+        return new Promise<boolean>((resolve, reject) => {
+
+            let game: TicTacToeLogic = TicTacToeCluster.getGame(gameID);
+
+            if (game !== null) {
+
+                game.resetGame()
+                .then(() => {
+                    game.leaveGame(socket, player)
+                    .then(needUpdate => {
+                        if (needUpdate === true) {
+                            this.sendTicTacToeStatusToConnectedPlayers(socket, gameID);
+                            this.sendTicTacToeSummaryToEveryone();
+                        }
+                        resolve(true);
+                    });
+                });
+
+                console.log('[leaveTicTacToe]: A player left tic-tac-toe');
+            }
+            else {
+                this.sendTicTacToeGameNotFoundMessage(socket);
+                reject(false);
+            }
+
         });
 
-        console.log('[leaveTicTacToe]: A player left tic-tac-toe');
+    }
+
+    private ticTacToeSummaryAction(socket: any): void {
+
+        socket.emit('ticTacToeSummary', TicTacToeCluster.getSummary());
+        console.log("[ticTacToeSummary]: The tic-tac-toe cluster summary was sent");
+
+    }
+
+    private sendTicTacToeSummaryToEveryone(): void {
+
+        this.io.sockets.emit('ticTacToeSummary', TicTacToeCluster.getSummary());
+        console.log("[ticTacToeSummary]: The tic-tac-toe cluster summary was sent to everyone");
 
     }
 

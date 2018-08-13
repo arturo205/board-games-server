@@ -92,12 +92,12 @@ export class Players {
 
     }
 
-    public static playerIsConnected(socketId: string): boolean {
+    public static playerIsConnected(name: string): boolean {
 
         let socketWasFound: boolean = false;
 
         this.loggedInPlayers.forEach(player => {
-            if (player.socketId === socketId) {
+            if (player.name === name) {
                 socketWasFound = true;
             }
         });

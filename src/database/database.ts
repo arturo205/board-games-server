@@ -4,38 +4,54 @@ const Sequelize = require('sequelize');
 
 export class BoardGamesDB {
 
-    /*private static sequelize = new Sequelize('BoardGamesDB', 'arturo', 'admin', {
-        host: '127.0.0.1',
-        dialect: 'postgres',
-        operatorsAliases: Sequelize.Op,
-        pool: {
-            max: 5,
-            min: 0,
-            acquire: 30000,
-            idle: 10000
-        }
-    });*/
-
-    private static sequelize = new Sequelize(process.env.HEROKU_POSTGRESQL_GRAY_URL, {
-        dialect: 'postgres',
-        protocol: 'postgres',
-        host: 'ec2-50-16-196-238.compute-1.amazonaws.com',
-        port: 5432,
-        logging: true,
-        operatorsAliases: Sequelize.Op,
-        pool: {
-            max: 10,
-            min: 0,
-            acquire: 30000,
-            idle: 10000
-        }
-    });
-
     private static PlayerDB;
+    public static sequelize;
 
     public static initialize(): void {
+        this.initializeDBObject();
         this.openDB();
         this.createModels();
+    }
+
+    private static initializeDBObject(): void {
+
+        let connectionSource: string = process.env.HEROKU_POSTGRESQL_GRAY_URL || "localhost";
+
+        if (connectionSource === "localhost") {
+
+            BoardGamesDB.sequelize = new Sequelize('BoardGamesDB', 'arturo', 'admin', {
+                host: '127.0.0.1',
+                dialect: 'postgres',
+                protocol: "postgres",
+                operatorsAliases: Sequelize.Op,
+                pool: {
+                    max: 5,
+                    min: 0,
+                    acquire: 30000,
+                    idle: 10000
+                }
+            });
+
+        }
+        else {
+
+            BoardGamesDB.sequelize = new Sequelize(process.env.HEROKU_POSTGRESQL_GRAY_URL, {
+                dialect: 'postgres',
+                protocol: 'postgres',
+                host: 'ec2-50-16-196-238.compute-1.amazonaws.com',
+                port: 5432,
+                logging: true,
+                operatorsAliases: Sequelize.Op,
+                pool: {
+                    max: 10,
+                    min: 0,
+                    acquire: 30000,
+                    idle: 10000
+                }
+            });
+
+        }
+
     }
 
     private static openDB(): void {

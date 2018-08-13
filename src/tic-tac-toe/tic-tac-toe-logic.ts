@@ -4,18 +4,24 @@ import { Player } from "../model/player";
 
 export class TicTacToeLogic {
 
-    private static winnerCombinations: Array<{ keyA: number, keyB: number, keyC: number }> = new Array<any>();
-    public static socketsFromActivePlayers: Array<any> = new Array<any>();
-    public static status: TicTacToeStatus = new TicTacToeStatus();
+    private winnerCombinations: Array<{ keyA: number, keyB: number, keyC: number }>;
+    public socketsFromActivePlayers: Array<any>;
+    public status: TicTacToeStatus;
 
-    public static joinGame(socket: any, user: Player): boolean {
+    public constructor(gameId: number) {
+        this.winnerCombinations = new Array<any>();
+        this.socketsFromActivePlayers = new Array<any>();
+        this.status = new TicTacToeStatus(gameId);
+    }
+
+    public joinGame(socket: any, player: Player): boolean {
 
         let joinedGame: boolean = false;
 
         if (this.status.playersConnected.length < 2) {
-            this.status.playersConnected.push(user);
+            this.status.playersConnected.push(player);
             this.status.systemMessage.result = true;
-            this.status.systemMessage.message = user.name + " joined the game!";
+            this.status.systemMessage.message = player.name + " joined the game!";
             this.socketsFromActivePlayers.push(socket);
             this.assignCharToPlay(this.status.playersConnected.length);
             joinedGame = true;
@@ -33,7 +39,7 @@ export class TicTacToeLogic {
 
     }
 
-    public static leaveGame(socket: any, player: Player): Promise<boolean> {
+    public leaveGame(socket: any, player: Player): Promise<boolean> {
 
         return new Promise<boolean>((resolve, reject) => {
 
@@ -56,7 +62,7 @@ export class TicTacToeLogic {
 
     }
 
-    public static removeConnectedPlayer(socket: any, playerToRemove: Player): boolean {
+    public removeConnectedPlayer(socket: any, playerToRemove: Player): boolean {
 
         let indexToDelete: number = -1;
         let playerRemoved: boolean = false;
@@ -77,7 +83,7 @@ export class TicTacToeLogic {
 
     }
 
-    public static removeActiveSocket(socket: any): void {
+    public removeActiveSocket(socket: any): void {
 
         let indexToDelete: number = -1;
 
@@ -93,7 +99,7 @@ export class TicTacToeLogic {
 
     }
 
-    private static assignCharToPlay(position: number): void {
+    private assignCharToPlay(position: number): void {
 
         if (this.status.charactersFromPlayers.length < 2) {
 
@@ -107,7 +113,7 @@ export class TicTacToeLogic {
 
     }
 
-    public static beginGame(): void {
+    public beginGame(): void {
 
         this.buildMovementsToWin();
         this.initializeSquareStatus();
@@ -118,7 +124,7 @@ export class TicTacToeLogic {
 
     }
 
-    public static resetGame(): Promise<boolean> {
+    public resetGame(): Promise<boolean> {
 
         return new Promise<boolean>((resolve, reject) => {
             this.status.squaresStatus.splice(0, this.status.squaresStatus.length);
@@ -134,7 +140,7 @@ export class TicTacToeLogic {
 
     }
 
-    public static async performMove(move: TicTacToeMove): Promise<boolean> {
+    public async performMove(move: TicTacToeMove): Promise<boolean> {
 
         return new Promise<boolean>((resolve, reject) => {
 
@@ -181,7 +187,7 @@ export class TicTacToeLogic {
         });
     }
 
-    private static changeTurn(): void {
+    private changeTurn(): void {
 
         let changeApplied: boolean = false;
 
@@ -194,7 +200,7 @@ export class TicTacToeLogic {
 
     }
 
-    private static freeSquaresLeft(): boolean {
+    private freeSquaresLeft(): boolean {
 
         let freeSquaresFound = false;
 
@@ -207,7 +213,7 @@ export class TicTacToeLogic {
         return freeSquaresFound;
     }
 
-    private static buildMovementsToWin(): void {
+    private buildMovementsToWin(): void {
 
         this.winnerCombinations.splice(0, this.winnerCombinations.length);
 
@@ -222,13 +228,13 @@ export class TicTacToeLogic {
 
     }
 
-    public static updateTurnMessage(): void {
+    public updateTurnMessage(): void {
 
         this.status.systemMessage.message = this.status.currentTurn.name + " please make your move! ";
 
     }
 
-    private static initializeSquareStatus(): void {
+    private initializeSquareStatus(): void {
 
         for (let i = 0; i < 9; i++) {
             this.status.squaresStatus.push(null);
@@ -236,7 +242,7 @@ export class TicTacToeLogic {
 
     }
 
-    private static checkForWinner(): number {
+    private checkForWinner(): number {
 
         let winnerCombination: number = -1;
 
@@ -249,7 +255,7 @@ export class TicTacToeLogic {
         return winnerCombination;
     }
 
-    private static checkLineForWinner(keyA: number, keyB: number, keyC: number) {
+    private checkLineForWinner(keyA: number, keyB: number, keyC: number) {
 
         let result = false;
 
@@ -260,6 +266,18 @@ export class TicTacToeLogic {
         }
 
         return result;
+    }
+
+    public playerIsConnected(player: Player) {
+
+
+
+        this.status.playersConnected.forEach(playerConnected => {
+            if (player.name === playerConnected.name) {
+
+            }
+        });
+
     }
 
 }
