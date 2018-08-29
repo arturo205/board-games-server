@@ -2,10 +2,19 @@
 
 module.exports = {
 
-  development: {
+  /*development: {
     client: 'postgresql',
     connection: {
       database: 'testDB1',
+      password: 'admin'
+    },
+    debug: true
+  },*/
+
+  development: {
+    client: 'postgresql',
+    connection: {
+      database: 'BoardGamesDB',
       password: 'admin'
     },
     debug: true

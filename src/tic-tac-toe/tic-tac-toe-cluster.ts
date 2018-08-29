@@ -1,6 +1,9 @@
 import { TicTacToeLogic } from "./tic-tac-toe-logic";
 import { Player } from "../model/player";
 import { TicTacToeSummaryElement } from "./tic-tac-toe-summary-element";
+import { Score } from "../model/score";
+import { BoardGamesDB } from "../database/database";
+import { resolve } from "url";
 
 export class TicTacToeCluster {
 
@@ -77,6 +80,22 @@ export class TicTacToeCluster {
 
     }
 
+    public static getHighestScores(numberOfScores: number): Promise<Array<Score>> {
+
+        return new Promise<Array<Score>>((resolve, reject) => {
+
+            BoardGamesDB.getBestScores(1, numberOfScores)
+            .then(bestScoresFound => {
+                resolve(bestScoresFound);
+            })
+            .catch(error => {
+                reject("Error while trying to retrieve the highest scores for tic-tac-toe: " + error);
+            });
+
+        });
+
+    }
+
     private static removeEmptyGames(): void {
 
         for (let i=TicTacToeCluster.activeGames.length - 1; i>=0; i--) {
@@ -116,6 +135,27 @@ export class TicTacToeCluster {
         }
 
         return foundID;
+
+    }
+    
+    public static saveScoreForPlayer(player: Player, score: number): Promise<boolean> {
+
+        return new Promise<boolean>((resolve, reject) => {
+
+            BoardGamesDB.addOrUpdateScore(player, 1, score)
+            .then(result => {
+                if (result) {
+                    resolve(true);
+                }
+                else {
+                    reject(false);
+                }
+            })
+            .catch(error => {
+                reject(error);
+            });
+
+        });
 
     }
 

@@ -1,10 +1,14 @@
 import { Player } from "../model/player";
+import { resolve } from "../../node_modules/@types/bluebird";
+import { Score } from "../model/score";
 
 const Sequelize = require('sequelize');
 
 export class BoardGamesDB {
 
     private static PlayerDB;
+    private static GamesDB;
+    private static ScoreDB;
     public static sequelize;
 
     public static initialize(): void {
@@ -92,6 +96,56 @@ export class BoardGamesDB {
             underscored: true,
             freezeTableName: true
         });
+
+        BoardGamesDB.GamesDB = this.sequelize.define('games', {
+            id: {
+                type: Sequelize.INTEGER,
+                primaryKey: true,
+                autoIncrement: true
+            },
+            name: {
+                type: Sequelize.STRING
+            },
+            min_players: {
+                type: Sequelize.INTEGER
+            },
+            max_players: {
+                type: Sequelize.INTEGER
+            }
+        },
+        {
+            paranoid: true,
+            underscored: true,
+            freezeTableName: true
+        });
+
+        BoardGamesDB.ScoreDB = this.sequelize.define('score', {
+            id: {
+                type: Sequelize.INTEGER,
+                primaryKey: true,
+                autoIncrement: true
+            },
+            player_id: {
+                type: Sequelize.INTEGER
+            },
+            game_id: {
+                type: Sequelize.INTEGER
+            },
+            score: {
+                type: Sequelize.INTEGER
+            }
+        },
+        {
+            paranoid: true,
+            underscored: true,
+            freezeTableName: true
+        });
+
+        BoardGamesDB.ScoreDB.belongsTo(BoardGamesDB.PlayerDB, {foreignKey: 'player_id', targetKey: 'id'});
+        BoardGamesDB.ScoreDB.belongsTo(BoardGamesDB.GamesDB, {foreignKey: 'game_id', targetKey: 'id'});
+
+        BoardGamesDB.PlayerDB.sync();
+        BoardGamesDB.ScoreDB.sync();
 
     }
 
@@ -207,7 +261,224 @@ export class BoardGamesDB {
                 reject(error);
             });
 
-        })
+        });
+
+    }
+
+    public static addOrUpdateScore(player: Player, gameId: number, newScore: number): Promise<boolean> {
+
+        return new Promise<boolean>((resolve, reject) => {
+
+            BoardGamesDB.getIdFromScoreTableForPlayer(player, gameId)
+            .then(scoreIdFound => {
+                console.log("SCORE ID FOUND!!");
+                console.log(scoreIdFound);
+                if (scoreIdFound < 0) {
+                    BoardGamesDB.insertScore(player, gameId, newScore)
+                    .then(insertResult => {
+                        if (insertResult) {
+                            resolve(true);
+                        }
+                        else {
+                            reject(false);
+                        }
+                    })
+                    .catch(error => {
+                        reject(error);
+                    });
+                }
+                else {
+                    BoardGamesDB.updateScore(scoreIdFound, newScore)
+                    .then(updateResult => {
+                        if (updateResult) {
+                            resolve(true);
+                        }
+                        else {
+                            reject(false);
+                        }
+                    })
+                    .catch(error => {
+                        reject(error);
+                    });
+                }
+            })
+            .catch(error => {
+                reject(error);
+            });
+        });
+
+    }
+
+    private static getIdFromScoreTableForPlayer(player: Player, gameId: number): Promise<number> {
+
+        let scoreId: number = -1;
+
+        return new Promise<number>((resolve, reject) => {
+
+            BoardGamesDB.ScoreDB.findOne({
+                where: {
+                    player_id: player.id,
+                    game_id: gameId
+                }
+            })
+            .then(scoreRow => {
+                if (scoreRow !== null) {
+                    if (scoreRow.id !== undefined && scoreRow.id !== null) {
+                        scoreId = scoreRow.id;
+                    }
+                    resolve(scoreId);
+                }
+                else {
+                    resolve(scoreId);
+                }
+            })
+            .catch(error => {
+                reject(error);
+            });
+        });
+
+    }
+
+    public static getScoreFromScoreTableForPlayer(player: Player, gameId: number): Promise<number> {
+
+        let score: number = 0;
+
+        return new Promise<number>((resolve, reject) => {
+
+            BoardGamesDB.ScoreDB.findOne({
+                where: {
+                    player_id: player.id,
+                    game_id: gameId
+                }
+            })
+            .then(scoreRow => {
+
+                if (scoreRow !== null) {
+                    if (scoreRow.score !== undefined && scoreRow.score !== null) {
+                        score = scoreRow.score;
+                    }
+                }
+                
+                resolve(score);
+            })
+            .catch(error => {
+                reject(error);
+            });
+        });
+
+    }
+
+    private static insertScore(player: Player, gameId: number, score: number): Promise<boolean> {
+
+        return new Promise<boolean>((resolve, reject) => {
+
+            BoardGamesDB.ScoreDB.create({
+                player_id: player.id,
+                game_id: gameId,
+                score: score
+            })
+            .then(() => {
+                resolve(true);
+            })
+            .catch(error => {
+                reject(error);
+            });
+
+        });
+
+    }
+
+    private static updateScore(scoreId: number, newScore: number): Promise<boolean> {
+
+        return new Promise<boolean>((resolve, reject) => {
+            
+            let currentScore: number = 0;
+
+            BoardGamesDB.getScoreFromScoreId(scoreId)
+            .then(scoreFound => {
+                currentScore = scoreFound;
+
+                BoardGamesDB.ScoreDB.update({
+                    score: currentScore + newScore
+                },
+                {
+                    where: {
+                        id: scoreId
+                    }
+                })
+                .then(() => {
+                    resolve(true);
+                })
+                .catch(error => {
+                    reject(error);
+                });
+            })
+            .catch(error => {
+                reject(error);
+            });
+
+        });
+
+    }
+
+    public static getScoreFromScoreId(scoreId: number): Promise<number> {
+
+        let scoreFound: number = 0;
+
+        return new Promise<number>((resolve, reject) => {
+
+            BoardGamesDB.ScoreDB.find({
+                where: {
+                    id: scoreId
+                }
+            })
+            .then(rowFound => {
+                scoreFound = rowFound.score;
+                resolve(scoreFound);
+            })
+            .catch(error => {
+                reject(error);
+            });
+
+        });
+
+    }
+
+    public static getBestScores(gameId: number, count: number): Promise<Array<Score>> {
+        
+        let scores: Array<Score> = new Array<Score>();
+
+        return new Promise<Array<Score>>((resolve, reject) => {
+
+            BoardGamesDB.ScoreDB.findAll({
+                include: [{
+                    model: BoardGamesDB.PlayerDB
+                }]
+            },
+            {
+                where: {
+                    game_id: gameId
+                },
+                order: [
+                    ['score', 'DESC']
+                ],
+                limit: count
+            })
+            .then(scoreRows => {
+                //console.log("FOUND SCORES!!!");
+                //console.log(scoreRows);
+                scoreRows.forEach(scoreFound => {
+                    let updatedDate = new Date(scoreFound.updated_at);
+                    let formattedDate = updatedDate.getFullYear() + "/" + (updatedDate.getMonth()+1) + "/" + updatedDate.getDate();
+                    scores.push(new Score(scoreFound.player.name, scoreFound.score, formattedDate));
+                });
+                resolve(scores);
+            })
+            .catch(error => {
+                reject(error);
+            });
+
+        });
 
     }
 

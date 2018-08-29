@@ -1,6 +1,7 @@
 import { TicTacToeMove } from "./tic-tac-toe-move";
 import { TicTacToeStatus } from "./tic-tac-toe-status";
 import { Player } from "../model/player";
+import { BoardGamesDB } from "../database/database";
 
 export class TicTacToeLogic {
 
@@ -164,6 +165,9 @@ export class TicTacToeLogic {
                             this.status.systemMessage.message = "There are no winners today. Try again!";
                             this.status.gameOver = true;
                             this.status.winnerCombination = {keyA: -1, keyB: -1, keyC: -1};
+                            this.status.playersConnected.forEach(player => {
+                                BoardGamesDB.addOrUpdateScore(player, 1, 20);
+                            });
 
                         }
                     }
@@ -172,6 +176,7 @@ export class TicTacToeLogic {
                         this.status.systemMessage.message = "Congratulations! " + this.status.currentTurn.name + " won!";
                         this.status.gameOver = true;
                         this.status.winnerCombination = this.winnerCombinations[winnerCombinationIndex];
+                        BoardGamesDB.addOrUpdateScore(this.status.currentTurn, 1, 100);
 
                     }
                 }

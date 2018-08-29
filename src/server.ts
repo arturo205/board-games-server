@@ -11,7 +11,6 @@ import { TicTacToeLogic } from './tic-tac-toe/tic-tac-toe-logic';
 import { TicTacToeMove } from './tic-tac-toe/tic-tac-toe-move';
 import { BoardGamesDB } from './database/database';
 import { TicTacToeCluster } from './tic-tac-toe/tic-tac-toe-cluster';
-import { resolve } from 'url';
 
 export class LogicServer {
     public static readonly PORT:number = 8080;
@@ -105,6 +104,18 @@ export class LogicServer {
 
             socket.on('ticTacToeSummary', () => {
                 this.ticTacToeSummaryAction(socket);
+            });
+
+            socket.on('ticTacToeScores', (numberOfLines: number) => {
+                this.sendTicTacToeHighestScoresToUser(socket, numberOfLines);
+            });
+
+            socket.on('ticTacToeSaveScore', (player: Player, score: number) => {
+                this.saveScoreFromUser(socket, player, score);
+            });
+
+            socket.on('ticTacToeUserScore', (player: Player) => {
+                this.sendTicTacToeScoreToUser(socket, player);
             });
 
         });
@@ -347,6 +358,40 @@ export class LogicServer {
 
     }
 
+    private sendTicTacToeHighestScoresToUser(socket: any, numberOfLines: number): void {
+
+        TicTacToeCluster.getHighestScores(numberOfLines)
+        .then(scores => {
+            console.log("HUH??!!");
+            console.log(scores);
+            socket.emit('ticTacToeScores', scores);
+            console.log("[ticTacToeScores]: The tic-tac-toe highest scores was sent");
+        })
+        .catch(error => {
+            console.log("[ticTacToeScores]: There was an error while trying to get the tic-tac-toe highest scores: " + error);
+        });
+
+    }
+
+    private saveScoreFromUser(socket: any, player: Player, score: number): void {
+
+        TicTacToeCluster.saveScoreForPlayer(player, score)
+        .then(result => {
+            if (result) {
+                socket.emit('ticTacToeSaveScore', new SystemMessage(true, "Your score was saved!"));
+                console.log("[ticTacToeSaveScore]: The tic-tac-toe score was saved for a player");
+            }
+            else {
+                socket.emit('ticTacToeSaveScore', new SystemMessage(false, "There was a problem while trying to save your score!"));
+                console.log("[ticTacToeSaveScore]: The tic-tac-toe score could not be saved for a player");
+            }
+        })
+        .catch(error => {
+            console.log("[ticTacToeSaveScore]: The following error ocurred - %s", error);
+        });
+
+    }
+
     private ticTacToeSummaryAction(socket: any): void {
 
         socket.emit('ticTacToeSummary', TicTacToeCluster.getSummary());
@@ -359,6 +404,19 @@ export class LogicServer {
         this.io.sockets.emit('ticTacToeSummary', TicTacToeCluster.getSummary());
         console.log("[ticTacToeSummary]: The tic-tac-toe cluster summary was sent to everyone");
 
+    }
+
+    private sendTicTacToeScoreToUser(socket: any, player: Player): void {
+
+        BoardGamesDB.getScoreFromScoreTableForPlayer(player, 1)
+        .then(score => {
+            socket.emit('ticTacToeUserScore', score);
+            console.log("[ticTacToeUserScore]: The tic-tac-toe score was sent to %s", player.name);
+        })
+        .catch(error => {
+            console.log("[ticTacToeUserScore]: Error - %s", error);
+        });
+    
     }
 
 }
