@@ -265,6 +265,22 @@ export class BoardGamesDB {
 
     }
 
+    public static getHighestScores(numberOfScores: number, gameId: number): Promise<Array<Score>> {
+
+        return new Promise<Array<Score>>((resolve, reject) => {
+
+            BoardGamesDB.getBestScores(gameId, numberOfScores)
+            .then(bestScoresFound => {
+                resolve(bestScoresFound);
+            })
+            .catch(error => {
+                reject("Error while trying to retrieve the highest scores: " + error);
+            });
+
+        });
+
+    }
+
     public static addOrUpdateScore(player: Player, gameId: number, newScore: number): Promise<boolean> {
 
         return new Promise<boolean>((resolve, reject) => {
@@ -453,9 +469,7 @@ export class BoardGamesDB {
             BoardGamesDB.ScoreDB.findAll({
                 include: [{
                     model: BoardGamesDB.PlayerDB
-                }]
-            },
-            {
+                }],
                 where: {
                     game_id: gameId
                 },
@@ -465,8 +479,6 @@ export class BoardGamesDB {
                 limit: count
             })
             .then(scoreRows => {
-                //console.log("FOUND SCORES!!!");
-                //console.log(scoreRows);
                 scoreRows.forEach(scoreFound => {
                     let updatedDate = new Date(scoreFound.updated_at);
                     let formattedDate = updatedDate.getFullYear() + "/" + (updatedDate.getMonth()+1) + "/" + updatedDate.getDate();

@@ -106,16 +106,16 @@ export class LogicServer {
                 this.ticTacToeSummaryAction(socket);
             });
 
-            socket.on('ticTacToeScores', (numberOfLines: number) => {
-                this.sendTicTacToeHighestScoresToUser(socket, numberOfLines);
-            });
-
             socket.on('ticTacToeSaveScore', (player: Player, score: number) => {
                 this.saveScoreFromUser(socket, player, score);
             });
 
-            socket.on('ticTacToeUserScore', (player: Player) => {
-                this.sendTicTacToeScoreToUser(socket, player);
+            socket.on('userScore', (player: Player, gameId: number) => {
+                this.sendScoreToUser(socket, player, gameId);
+            });
+
+            socket.on('highestScores', (numberOfLines: number, gameId: number) => {
+                this.sendHighestScoresToUser(socket, numberOfLines, gameId);
             });
 
         });
@@ -358,17 +358,15 @@ export class LogicServer {
 
     }
 
-    private sendTicTacToeHighestScoresToUser(socket: any, numberOfLines: number): void {
+    private sendHighestScoresToUser(socket: any, numberOfLines: number, gameId: number): void {
 
-        TicTacToeCluster.getHighestScores(numberOfLines)
+        BoardGamesDB.getHighestScores(numberOfLines, gameId)
         .then(scores => {
-            console.log("HUH??!!");
-            console.log(scores);
-            socket.emit('ticTacToeScores', scores);
-            console.log("[ticTacToeScores]: The tic-tac-toe highest scores was sent");
+            socket.emit('highestScores', scores);
+            console.log("[highestScores]: The highest scores were sent");
         })
         .catch(error => {
-            console.log("[ticTacToeScores]: There was an error while trying to get the tic-tac-toe highest scores: " + error);
+            console.log("[highestScores]: There was an error while trying to send the highest scores: " + error);
         });
 
     }
@@ -406,15 +404,15 @@ export class LogicServer {
 
     }
 
-    private sendTicTacToeScoreToUser(socket: any, player: Player): void {
+    private sendScoreToUser(socket: any, player: Player, gameId: number): void {
 
-        BoardGamesDB.getScoreFromScoreTableForPlayer(player, 1)
+        BoardGamesDB.getScoreFromScoreTableForPlayer(player, gameId)
         .then(score => {
-            socket.emit('ticTacToeUserScore', score);
-            console.log("[ticTacToeUserScore]: The tic-tac-toe score was sent to %s", player.name);
+            socket.emit('userScore', score);
+            console.log("[userScore]: The tic-tac-toe score was sent to %s", player.name);
         })
         .catch(error => {
-            console.log("[ticTacToeUserScore]: Error - %s", error);
+            console.log("[userScore]: Error - %s", error);
         });
     
     }

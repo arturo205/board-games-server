@@ -3,7 +3,6 @@ import { Player } from "../model/player";
 import { TicTacToeSummaryElement } from "./tic-tac-toe-summary-element";
 import { Score } from "../model/score";
 import { BoardGamesDB } from "../database/database";
-import { resolve } from "url";
 
 export class TicTacToeCluster {
 
@@ -77,22 +76,6 @@ export class TicTacToeCluster {
         });
 
         return summary;
-
-    }
-
-    public static getHighestScores(numberOfScores: number): Promise<Array<Score>> {
-
-        return new Promise<Array<Score>>((resolve, reject) => {
-
-            BoardGamesDB.getBestScores(1, numberOfScores)
-            .then(bestScoresFound => {
-                resolve(bestScoresFound);
-            })
-            .catch(error => {
-                reject("Error while trying to retrieve the highest scores for tic-tac-toe: " + error);
-            });
-
-        });
 
     }
 
