@@ -1,6 +1,6 @@
-import { Player } from "../model/player";
+import { Player } from "../player";
 
-export class TicTacToeSummaryElement {
+export abstract class GameSummaryElement {
 
     public id: number;
     public player1: Player;

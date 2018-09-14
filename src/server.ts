@@ -7,10 +7,10 @@ import { Player } from './model/player';
 import { Players } from './model/players';
 import { SystemMessage } from './model/system-message';
 import { ChatSystem } from './model/chat-system';
-import { TicTacToeLogic } from './tic-tac-toe/tic-tac-toe-logic';
-import { TicTacToeMove } from './tic-tac-toe/tic-tac-toe-move';
 import { BoardGamesDB } from './database/database';
-import { TicTacToeCluster } from './tic-tac-toe/tic-tac-toe-cluster';
+import { TicTacToeMove } from './model/tic-tac-toe/tic-tac-toe-move';
+import { TicTacToeCluster } from './model/tic-tac-toe/tic-tac-toe-cluster';
+import { TicTacToeLogic } from './model/tic-tac-toe/tic-tac-toe-logic';
 
 export class LogicServer {
     public static readonly PORT:number = 8080;
@@ -116,6 +116,10 @@ export class LogicServer {
 
             socket.on('highestScores', (numberOfLines: number, gameId: number) => {
                 this.sendHighestScoresToUser(socket, numberOfLines, gameId);
+            });
+
+            socket.on('newConnectFour', (boardWidth: number, boardHeight: number) => {
+                
             });
 
         });
@@ -416,5 +420,7 @@ export class LogicServer {
         });
     
     }
+
+    private createNew
 
 }

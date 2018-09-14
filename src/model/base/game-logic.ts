@@ -1,18 +1,17 @@
-import { TicTacToeMove } from "./tic-tac-toe-move";
-import { TicTacToeStatus } from "./tic-tac-toe-status";
-import { Player } from "../model/player";
-import { BoardGamesDB } from "../database/database";
+import { Player } from "../player";
+import { BoardGamesDB } from "../../database/database";
+import { GameMove } from '../base/game-move';
+import { GameStatus } from './game-status';
 
-export class TicTacToeLogic {
+export abstract class GameLogic {
 
     private winnerCombinations: Array<{ keyA: number, keyB: number, keyC: number }>;
     public socketsFromActivePlayers: Array<any>;
-    public status: TicTacToeStatus;
+    public status: GameStatus;
 
     public constructor(gameId: number) {
         this.winnerCombinations = new Array<any>();
         this.socketsFromActivePlayers = new Array<any>();
-        this.status = new TicTacToeStatus(gameId);
     }
 
     public joinGame(socket: any, player: Player): boolean {
@@ -24,7 +23,7 @@ export class TicTacToeLogic {
             this.status.systemMessage.result = true;
             this.status.systemMessage.message = player.name + " joined the game!";
             this.socketsFromActivePlayers.push(socket);
-            this.assignCharToPlay(this.status.playersConnected.length);
+            //this.assignCharToPlay(this.status.playersConnected.length);
             joinedGame = true;
         }
         else {
@@ -100,20 +99,6 @@ export class TicTacToeLogic {
 
     }
 
-    private assignCharToPlay(position: number): void {
-
-        if (this.status.charactersFromPlayers.length < 2) {
-
-            if (position === 1) {
-                this.status.charactersFromPlayers.push("O");
-            }
-            else {
-                this.status.charactersFromPlayers.push("X");
-            }
-        }
-
-    }
-
     public beginGame(): void {
 
         this.buildMovementsToWin();
@@ -141,7 +126,7 @@ export class TicTacToeLogic {
 
     }
 
-    public async performMove(move: TicTacToeMove): Promise<boolean> {
+    public async performMove(move: GameMove): Promise<boolean> {
 
         return new Promise<boolean>((resolve, reject) => {
 
