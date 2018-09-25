@@ -329,8 +329,12 @@ export class LogicServer {
         let game: GameLogic = this.ticTacToeCluster.getGame(gameID);
 
         if (game !== null) {
-            game.performMove(move).then(() => {
+            game.performMove(move)
+            .then(() => {
                 this.sendTicTacToeStatusToConnectedPlayers(socket, gameID);
+            })
+            .catch(error => {
+                console.log("An error has occurred while trying to perform a move on the tic tac toe");
             });
         }
         else {
@@ -602,8 +606,12 @@ export class LogicServer {
         let game: GameLogic = this.connectFourCluster.getGame(gameID);
 
         if (game !== null) {
-            game.performMove(move).then(() => {
+            game.performMove(move)
+            .then(() => {
                 this.sendConnectFourStatusToConnectedPlayers(socket, gameID);
+            })
+            .catch(error => {
+                console.log("An error has occurred while trying to perform a move on the connect four");
             });
         }
         else {
