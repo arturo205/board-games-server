@@ -10,7 +10,11 @@ import { ChatSystem } from './model/chat-system';
 import { BoardGamesDB } from './database/database';
 import { TicTacToeMove } from './model/tic-tac-toe/tic-tac-toe-move';
 import { TicTacToeCluster } from './model/tic-tac-toe/tic-tac-toe-cluster';
-import { TicTacToeLogic } from './model/tic-tac-toe/tic-tac-toe-logic';
+import { ConnectFourCluster } from './model/connect-four/connect-four-cluster';
+import { GameCluster } from './model/base/game-cluster';
+import { GameLogic } from './model/base/game-logic';
+import { ConnectFourMove } from './model/connect-four/connect-four-move';
+import { ConnectFourLogic } from './model/connect-four/connect-four-logic';
 
 export class LogicServer {
     public static readonly PORT:number = 8080;
@@ -18,14 +22,22 @@ export class LogicServer {
     private server: Server;
     private io: SocketIO.Server;
     private port: string | number;
+    private ticTacToeCluster: GameCluster;
+    private connectFourCluster: GameCluster;
 
     constructor() {
+        this.initialize();
         this.createApp();
         this.config();
         this.createServer();
         this.sockets();
         this.listen();
         BoardGamesDB.initialize();
+    }
+
+    private initialize(): void {
+        this.ticTacToeCluster = new TicTacToeCluster();
+        this.connectFourCluster = new ConnectFourCluster();
     }
 
     private createApp(): void {
@@ -54,6 +66,22 @@ export class LogicServer {
 
             console.log('[connect]: Connected client with socket id - %s', socket.id);
 
+            /**
+             * General endpoints
+             */
+
+            socket.on('userScore', (player: Player, gameId: number) => {
+                this.sendScoreToUser(socket, player, gameId);
+            });
+
+            socket.on('highestScores', (numberOfLines: number, gameId: number) => {
+                this.sendHighestScoresToUser(socket, numberOfLines, gameId);
+            });
+
+            /**
+             * Login and players endpoints
+             */
+
             socket.on('newPlayer', (newPlayer: Player) => {
                 this.newPlayerAction(socket, newPlayer);
             });
@@ -74,6 +102,10 @@ export class LogicServer {
                 this.allPlayersAction(socket);
             });
 
+            /**
+             * Chat endpoints
+             */
+
             socket.on('newChatMessage', (chatMessage: ChatMessage) => {
                 this.newChatMessageAction(socket, chatMessage);
             });
@@ -81,6 +113,10 @@ export class LogicServer {
             socket.on('disconnect', () => {
                 this.disconnectAction(socket);
             });
+
+            /**
+             * Tic Tac Toe endpoints
+             */
 
             socket.on('newTicTacToe', (player: Player) => {
                 this.newTicTacToeAction(socket, player);
@@ -110,16 +146,32 @@ export class LogicServer {
                 this.saveScoreFromUser(socket, player, score);
             });
 
-            socket.on('userScore', (player: Player, gameId: number) => {
-                this.sendScoreToUser(socket, player, gameId);
+            /**
+             * Connect Four endpoints
+             */
+
+            socket.on('newConnectFour', (player: Player, boardWidth: number, boardHeight: number) => {
+                this.newConnectFourAction(socket, player, boardWidth, boardHeight);
             });
 
-            socket.on('highestScores', (numberOfLines: number, gameId: number) => {
-                this.sendHighestScoresToUser(socket, numberOfLines, gameId);
+            socket.on('connectFourSummary', () => {
+                this.connectFourSummaryAction(socket);
             });
 
-            socket.on('newConnectFour', (boardWidth: number, boardHeight: number) => {
-                
+            socket.on('joinConnectFour', (player: Player, gameID: number) => {
+                this.joinConnectFourGameAction(socket, player, gameID);
+            });
+
+            socket.on('resetConnectFour', (gameID: number) => {
+                this.resetConnectFourAction(socket, gameID);
+            });
+
+            socket.on('leaveConnectFour', (player: Player, gameID: number) => {
+                this.leaveConnectFourAction(socket, player, gameID);
+            });
+
+            socket.on('performConnectFourMove', (move: ConnectFourMove, gameID: number) => {
+                this.performConnectFourMoveAction(socket, move, gameID);
             });
 
         });
@@ -218,7 +270,7 @@ export class LogicServer {
     private disconnectAction(socket: any): void {
 
         let player: Player = Players.getPlayerFromSocketId(socket.id);
-        let ticTacToeGameID: number = TicTacToeCluster.getGameID(player);
+        let ticTacToeGameID: number = this.ticTacToeCluster.getGameID(player);
 
         if (ticTacToeGameID >= 0) {
             this.leaveTicTacToeAction(socket, player, ticTacToeGameID)
@@ -242,7 +294,7 @@ export class LogicServer {
 
     private newTicTacToeAction(socket: any, player: Player): void {
 
-        TicTacToeCluster.addNewGame(socket, player)
+        this.ticTacToeCluster.addNewGame(socket, player)
         .then(gameID => {
             this.sendTicTacToeSummaryToEveryone();
             this.sendTicTacToeStatusToConnectedPlayers(socket, gameID);
@@ -252,7 +304,7 @@ export class LogicServer {
 
     private joinTicTacToeGameAction(socket: any, player: Player, gameID: number): void {
 
-        let game: TicTacToeLogic = TicTacToeCluster.getGame(gameID);
+        let game: GameLogic = this.ticTacToeCluster.getGame(gameID);
         let result: boolean = false;
         
         if (game !== null) {
@@ -274,7 +326,7 @@ export class LogicServer {
 
     private performTicTacToeMoveAction(socket: any, move: TicTacToeMove, gameID: number): void {
 
-        let game: TicTacToeLogic = TicTacToeCluster.getGame(gameID);
+        let game: GameLogic = this.ticTacToeCluster.getGame(gameID);
 
         if (game !== null) {
             game.performMove(move).then(() => {
@@ -289,7 +341,7 @@ export class LogicServer {
 
     private sendTicTacToeStatusToConnectedPlayers(socket: any, gameID: number): void {
 
-        let game: TicTacToeLogic = TicTacToeCluster.getGame(gameID);
+        let game: GameLogic = this.ticTacToeCluster.getGame(gameID);
 
         if (game !== null) {
 
@@ -314,7 +366,7 @@ export class LogicServer {
 
     private resetTicTacToeAction(socket: any, gameID: number): void {
 
-        let game: TicTacToeLogic = TicTacToeCluster.getGame(gameID);
+        let game: GameLogic = this.ticTacToeCluster.getGame(gameID);
 
         if (game !== null) {
 
@@ -335,7 +387,7 @@ export class LogicServer {
 
         return new Promise<boolean>((resolve, reject) => {
 
-            let game: TicTacToeLogic = TicTacToeCluster.getGame(gameID);
+            let game: GameLogic = this.ticTacToeCluster.getGame(gameID);
 
             if (game !== null) {
 
@@ -377,7 +429,7 @@ export class LogicServer {
 
     private saveScoreFromUser(socket: any, player: Player, score: number): void {
 
-        TicTacToeCluster.saveScoreForPlayer(player, score)
+        this.ticTacToeCluster.saveScoreForPlayer(player, score)
         .then(result => {
             if (result) {
                 socket.emit('ticTacToeSaveScore', new SystemMessage(true, "Your score was saved!"));
@@ -396,14 +448,14 @@ export class LogicServer {
 
     private ticTacToeSummaryAction(socket: any): void {
 
-        socket.emit('ticTacToeSummary', TicTacToeCluster.getSummary());
+        socket.emit('ticTacToeSummary', this.ticTacToeCluster.getSummary());
         console.log("[ticTacToeSummary]: The tic-tac-toe cluster summary was sent");
 
     }
 
     private sendTicTacToeSummaryToEveryone(): void {
 
-        this.io.sockets.emit('ticTacToeSummary', TicTacToeCluster.getSummary());
+        this.io.sockets.emit('ticTacToeSummary', this.ticTacToeCluster.getSummary());
         console.log("[ticTacToeSummary]: The tic-tac-toe cluster summary was sent to everyone");
 
     }
@@ -421,6 +473,143 @@ export class LogicServer {
     
     }
 
-    private createNew
+    private newConnectFourAction(socket: any, player: Player, boardWidth: number, boardHeight: number): void {
+
+        this.connectFourCluster.addNewGame(socket, player)
+        .then(gameID => {
+            (<ConnectFourCluster>this.connectFourCluster).addBoardDimensions(gameID, boardWidth, boardHeight)
+            .then(() => {
+                this.sendConnectFourSummaryToEveryone();
+                this.sendConnectFourStatusToConnectedPlayers(socket, gameID);
+            });
+        });
+
+    }
+
+    private connectFourSummaryAction(socket: any): void {
+
+        socket.emit('connectFourSummary', this.connectFourCluster.getSummary());
+        console.log("[connectFourSummary]: The connect four cluster summary was sent");
+
+    }
+
+    private sendConnectFourSummaryToEveryone(): void {
+
+        this.io.sockets.emit('connectFourSummary', this.connectFourCluster.getSummary());
+        console.log("[connectFourSummary]: The connect four cluster summary was sent to everyone");
+
+    }
+
+    private sendConnectFourStatusToConnectedPlayers(socket: any, gameID: number): void {
+
+        let game: GameLogic = this.connectFourCluster.getGame(gameID);
+
+        if (game !== null) {
+
+            game.socketsFromActivePlayers.forEach(socketFromActivePlayer => {
+                socketFromActivePlayer.emit('connectFourStatus', game.status);
+            });
+
+            console.log('[connectFourStatus]: Sent the connect four status to players playing');
+        }
+        else {
+            this.sendConnectFourGameNotFoundMessage(socket);
+        }
+
+    }
+
+    private sendConnectFourGameNotFoundMessage(socket: any): void {
+
+        socket.emit('connectFourSystemMessage', new SystemMessage(false, "The connect four game did not exist when the player tried to join"));
+        console.log('The connect four game did not exist');
+
+    }
+
+    private joinConnectFourGameAction(socket: any, player: Player, gameID: number): void {
+
+        let game: GameLogic = this.connectFourCluster.getGame(gameID);
+        let result: boolean = false;
+        
+        if (game !== null) {
+            result = game.joinGame(socket, player);
+
+            if (result) {
+                this.sendConnectFourStatusToConnectedPlayers(socket, gameID);
+            }
+            else {
+                socket.emit('connectFourSystemMessage', game.status.systemMessage);
+                console.log('[joinConnectFour]: Player was denied to join the connect-four game - %s', player.name);
+            }
+        }
+        else {
+            this.sendConnectFourGameNotFoundMessage(socket);
+        }
+
+    }
+
+    private resetConnectFourAction(socket: any, gameID: number): void {
+
+        let game: GameLogic = this.connectFourCluster.getGame(gameID);
+
+        if (game !== null) {
+
+            game.resetGame()
+            .then(() => {
+                this.sendConnectFourStatusToConnectedPlayers(socket, gameID);
+            });
+
+            console.log('[resetConnectFour]: The connect-four game was reset by a player');
+        }
+        else {
+            this.sendConnectFourGameNotFoundMessage(socket);
+        }
+
+    }
+
+    private leaveConnectFourAction(socket: any, player: Player, gameID: number): Promise<boolean> {
+
+        return new Promise<boolean>((resolve, reject) => {
+
+            let game: GameLogic = this.connectFourCluster.getGame(gameID);
+
+            if (game !== null) {
+
+                game.resetGame()
+                .then(() => {
+                    game.leaveGame(socket, player)
+                    .then(needUpdate => {
+                        if (needUpdate === true) {
+                            this.sendConnectFourStatusToConnectedPlayers(socket, gameID);
+                            this.sendConnectFourSummaryToEveryone();
+                        }
+                        resolve(true);
+                    });
+                });
+
+                console.log('[leaveConnectFour]: A player left connect four');
+            }
+            else {
+                this.sendConnectFourGameNotFoundMessage(socket);
+                reject(false);
+            }
+
+        });
+
+    }
+
+    private performConnectFourMoveAction(socket: any, move: ConnectFourMove, gameID: number): void {
+
+        let game: GameLogic = this.connectFourCluster.getGame(gameID);
+
+        if (game !== null) {
+            game.performMove(move).then(() => {
+                this.sendConnectFourStatusToConnectedPlayers(socket, gameID);
+            });
+        }
+        else {
+            this.sendConnectFourGameNotFoundMessage(socket);
+        }
+
+    }
 
 }

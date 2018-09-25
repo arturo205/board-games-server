@@ -25,6 +25,20 @@ export class ConnectFourCluster extends GameCluster {
 
     }
 
+    public addBoardDimensions(gameId: number, boardWidth: number, boardHeight: number): Promise<boolean> {
+
+        return new Promise<boolean>((resolve) => {
+
+            let newGame: GameLogic = this.getGame(gameId);
+
+            (<ConnectFourLogic>newGame).addCustomBoardDimensions(boardWidth, boardHeight);
+
+            resolve(true);
+
+        });
+
+    }
+
     public getSummary(): Array<ConnectFourSummaryElement> {
 
         let summary: Array<ConnectFourSummaryElement> = new Array<ConnectFourSummaryElement>();

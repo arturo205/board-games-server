@@ -2,6 +2,9 @@
   "files": [
     "src/*.ts",
     "src/model/*.ts",
+    "src/model/base/*.ts",
+    "src/model/tic-tac-toe/*.ts",
+    "src/model/connect-four/*.ts",
     "src/tic-tac-toe/*.ts",
     "src/database/*.ts"
   ],
